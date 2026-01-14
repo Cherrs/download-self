@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下载合集</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+</head>
+
+<body>
+    <!-- 密码输入弹窗 -->
+    <div id="passwordModal" class="modal">
+        <div class="modal-content">
+            <h2>请输入下载密码</h2>
+            <input type="password" id="passwordInput" placeholder="请输入密码">
+            <!-- Turnstile验证码容器 -->
+            <div id="turnstile-container" style="display: none; margin: 15px 0;">
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAACMhHDAC96MuwZzS"></div>
+            </div>
+            <div class="modal-buttons">
+                <button id="submitPassword" class="btn-primary">确定</button>
+                <button id="cancelPassword" class="btn-secondary">取消</button>
+            </div>
+            <p id="errorMessage" class="error-message"></p>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>工具下载</h1>
+            <p class="subtitle">本地文件下载</p>
+        </header>
+
+        <main>
+            <section class="category">
+                <h2>可用工具</h2>
+                <div class="tools-grid">
+                    <div class="tool-card">
+                        <div class="tool-icon">远程桌面</div>
+                        <h3>RustDesk</h3>
+                        <p>远程桌面软件</p>
+                        <div class="tool-info">
+                            <span class="version">版本: 1.4.5</span>
+                            <span class="size">x86_64</span>
+                        </div>
+                        <a href="#" class="download-btn" data-file="rustdesk-1.4.5-x86_64.exe">下载</a>
+                    </div>
+
+                    <div class="tool-card">
+                        <div class="tool-icon">Mumble</div>
+                        <h3>Mumble Client</h3>
+                        <p>语音通讯</p>
+                        <div class="tool-info">
+                            <span class="version">版本: 1.5.857</span>
+                            <span class="size">x64</span>
+                        </div>
+                        <a href="#" class="download-btn" data-file="mumble_client-1.5.857.x64.exe">下载</a>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer>
+            <p>我</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
