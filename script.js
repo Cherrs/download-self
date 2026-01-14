@@ -1,4 +1,6 @@
-// 添加页面交互功能
+/* ========================================
+   Modern Download Center - JavaScript
+   ======================================== */
 
 let authToken = null;
 let pendingDownload = null;
@@ -7,6 +9,7 @@ let turnstileWidgetId = null;
 document.addEventListener('DOMContentLoaded', function () {
     setupPasswordModal();
     setupDownloadButtons();
+    updateCopyright();
 });
 
 // 设置密码弹窗
@@ -20,18 +23,23 @@ function setupPasswordModal() {
 
     // 提交密码
     submitBtn.addEventListener('click', async () => {
-        const password = passwordInput.value;
+        const password = passwordInput.value.trim();
         if (!password) {
-            errorMessage.textContent = '请输入密码';
+            showError('请输入密码');
             return;
         }
+
+        // 显示加载状态
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span>验证中...</span>';
 
         // 获取Turnstile token（如果显示了验证码）
         let turnstileToken = null;
         if (turnstileContainer.style.display !== 'none' && window.turnstile) {
             turnstileToken = window.turnstile.getResponse(turnstileWidgetId);
             if (!turnstileToken) {
-                errorMessage.textContent = '请完成验证码验证';
+                showError('请完成验证码验证');
+                resetSubmitButton();
                 return;
             }
         }
@@ -55,7 +63,7 @@ function setupPasswordModal() {
                 errorMessage.textContent = '';
                 passwordInput.value = '';
                 turnstileContainer.style.display = 'none';
-                modal.classList.remove('active');
+                closeModal();
 
                 // 执行待下载的文件
                 if (pendingDownload) {
@@ -63,7 +71,7 @@ function setupPasswordModal() {
                     pendingDownload = null;
                 }
             } else {
-                errorMessage.textContent = result.message || '密码错误';
+                showError(result.message || '密码错误，请重试');
 
                 // 如果需要显示验证码
                 if (result.requireCaptcha && turnstileContainer.style.display === 'none') {
@@ -76,18 +84,16 @@ function setupPasswordModal() {
                 }
             }
         } catch (error) {
-            errorMessage.textContent = '验证失败，请重试';
+            showError('验证失败，请重试');
             console.error('密码验证错误:', error);
+        } finally {
+            resetSubmitButton();
         }
     });
 
     // 取消按钮
     cancelBtn.addEventListener('click', () => {
-        modal.classList.remove('active');
-        passwordInput.value = '';
-        errorMessage.textContent = '';
-        turnstileContainer.style.display = 'none';
-        pendingDownload = null;
+        closeModal();
     });
 
     // 回车提交
@@ -99,14 +105,55 @@ function setupPasswordModal() {
 
     // 点击背景关闭
     modal.addEventListener('click', (e) => {
-        if (e.target === modal) {
-            modal.classList.remove('active');
-            passwordInput.value = '';
-            errorMessage.textContent = '';
-            turnstileContainer.style.display = 'none';
-            pendingDownload = null;
+        if (e.target === modal || e.target.classList.contains('modal-backdrop')) {
+            closeModal();
         }
     });
+
+    // ESC 键关闭
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && modal.classList.contains('active')) {
+            closeModal();
+        }
+    });
+}
+
+// 关闭模态框
+function closeModal() {
+    const modal = document.getElementById('passwordModal');
+    const passwordInput = document.getElementById('passwordInput');
+    const errorMessage = document.getElementById('errorMessage');
+    const turnstileContainer = document.getElementById('turnstile-container');
+
+    modal.classList.remove('active');
+    passwordInput.value = '';
+    errorMessage.textContent = '';
+    turnstileContainer.style.display = 'none';
+    pendingDownload = null;
+}
+
+// 显示错误信息
+function showError(message) {
+    const errorMessage = document.getElementById('errorMessage');
+    errorMessage.textContent = message;
+
+    // 添加抖动动画
+    errorMessage.style.animation = 'shake 0.4s';
+    setTimeout(() => {
+        errorMessage.style.animation = '';
+    }, 400);
+}
+
+// 重置提交按钮
+function resetSubmitButton() {
+    const submitBtn = document.getElementById('submitPassword');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `
+        <span>确认下载</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14m-7-7l7 7-7 7"/>
+        </svg>
+    `;
 }
 
 // 显示Turnstile验证码
@@ -139,11 +186,23 @@ function setupDownloadButtons() {
             } else {
                 // 需要输入密码
                 pendingDownload = filename;
-                document.getElementById('passwordModal').classList.add('active');
+                const modal = document.getElementById('passwordModal');
+                modal.classList.add('active');
+
+                // 聚焦输入框
                 setTimeout(() => {
                     document.getElementById('passwordInput').focus();
                 }, 100);
             }
+        });
+
+        // 添加触摸反馈（移动端优化）
+        button.addEventListener('touchstart', function () {
+            this.style.transform = 'translateY(0)';
+        });
+
+        button.addEventListener('touchend', function () {
+            this.style.transform = '';
         });
     });
 }
@@ -159,109 +218,98 @@ function downloadFile(filename) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // 显示成功提示
+    showDownloadSuccess(filename);
 }
 
-// 添加搜索功能
-function addSearchFunctionality() {
-    // 创建搜索框
-    const header = document.querySelector('header');
-    const searchContainer = document.createElement('div');
-    searchContainer.className = 'search-container';
-    searchContainer.innerHTML = `
-        <input type="text" id="searchInput" placeholder="搜索工具..." />
+// 显示下载成功提示
+function showDownloadSuccess(filename) {
+    // 创建提示元素
+    const toast = document.createElement('div');
+    toast.className = 'toast-notification';
+    toast.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+            <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>下载已开始</span>
     `;
-    header.appendChild(searchContainer);
 
-    // 添加搜索框样式
+    // 添加样式
     const style = document.createElement('style');
-    style.textContent = `
-        .search-container {
-            margin-top: 30px;
-            max-width: 500px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        #searchInput {
-            width: 100%;
-            padding: 15px 20px;
-            border: none;
-            border-radius: 50px;
-            font-size: 1rem;
-            outline: none;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-        }
-        .tool-card.hidden {
-            display: none;
-        }
-        .category.hidden {
-            display: none;
-        }
-    `;
-    document.head.appendChild(style);
-
-    // 搜索逻辑
-    const searchInput = document.getElementById('searchInput');
-    searchInput.addEventListener('input', function () {
-        const searchTerm = this.value.toLowerCase();
-        const categories = document.querySelectorAll('.category');
-
-        categories.forEach(category => {
-            const tools = category.querySelectorAll('.tool-card');
-            let visibleCount = 0;
-
-            tools.forEach(tool => {
-                const title = tool.querySelector('h3').textContent.toLowerCase();
-                const description = tool.querySelector('p').textContent.toLowerCase();
-
-                if (title.includes(searchTerm) || description.includes(searchTerm)) {
-                    tool.classList.remove('hidden');
-                    visibleCount++;
-                } else {
-                    tool.classList.add('hidden');
+    if (!document.getElementById('toast-styles')) {
+        style.id = 'toast-styles';
+        style.textContent = `
+            .toast-notification {
+                position: fixed;
+                bottom: 2rem;
+                right: 2rem;
+                background: #10B981;
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 0.75rem;
+                box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+                display: flex;
+                align-items: center;
+                gap: 0.75rem;
+                font-weight: 600;
+                animation: slideInRight 0.3s ease-out, slideOutRight 0.3s ease-in 2.7s;
+                z-index: 9999;
+            }
+            
+            @keyframes slideInRight {
+                from {
+                    transform: translateX(100%);
+                    opacity: 0;
                 }
-            });
-
-            // 如果分类下没有可见的工具，隐藏整个分类
-            if (visibleCount === 0) {
-                category.classList.add('hidden');
-            } else {
-                category.classList.remove('hidden');
+                to {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
             }
-        });
-    });
+            
+            @keyframes slideOutRight {
+                from {
+                    transform: translateX(0);
+                    opacity: 1;
+                }
+                to {
+                    transform: translateX(100%);
+                    opacity: 0;
+                }
+            }
+            
+            @keyframes shake {
+                0%, 100% { transform: translateX(0); }
+                25% { transform: translateX(-10px); }
+                75% { transform: translateX(10px); }
+            }
+            
+            @media (max-width: 480px) {
+                .toast-notification {
+                    bottom: 1rem;
+                    right: 1rem;
+                    left: 1rem;
+                }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    document.body.appendChild(toast);
+
+    // 3秒后移除
+    setTimeout(() => {
+        toast.remove();
+    }, 3000);
 }
 
-// 添加滚动动画
-function addScrollAnimations() {
-    const observerOptions = {
-        threshold: 0.1,
-        rootMargin: '0px 0px -100px 0px'
-    };
-
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting) {
-                entry.target.style.opacity = '1';
-                entry.target.style.transform = 'translateY(0)';
-            }
-        });
-    }, observerOptions);
-
-    document.querySelectorAll('.category').forEach(category => {
-        category.style.opacity = '0';
-        category.style.transform = 'translateY(30px)';
-        category.style.transition = 'all 0.6s ease';
-        observer.observe(category);
-    });
-}
-
-// 获取当前年份并更新版权信息
+// 更新版权年份
 function updateCopyright() {
-    const copyrightElement = document.querySelector('.copyright');
-    if (copyrightElement) {
+    const footerText = document.querySelector('.footer-text');
+    if (footerText) {
         const currentYear = new Date().getFullYear();
-        copyrightElement.innerHTML = `© ${currentYear} 工具下载合集 | 所有链接指向官方网站`;
+        footerText.textContent = `© ${currentYear}`;
     }
 }
-
-updateCopyright();
