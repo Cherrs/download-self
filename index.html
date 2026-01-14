@@ -12,7 +12,7 @@
         href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@300;400;500;600;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 
 <body>
@@ -30,9 +30,7 @@
                     <input type="password" id="passwordInput" placeholder="请输入密码" autocomplete="off">
                 </div>
                 <!-- Turnstile验证码容器 -->
-                <div id="turnstile-container" style="display: none; margin: 20px 0;">
-                    <div class="cf-turnstile" data-sitekey="0x4AAAAAACMhHDAC96MuwZzS"></div>
-                </div>
+                <div id="turnstile-container" style="display: none; margin: 20px 0;"></div>
                 <p id="errorMessage" class="error-message"></p>
             </div>
             <div class="modal-footer">

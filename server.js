@@ -14,6 +14,19 @@ const TURNSTILE_ENABLED = process.env.TURNSTILE_ENABLED === 'true' || false;
 // 失败次数记录
 const failedAttempts = new Map();
 
+// 有效的token集合（token -> 过期时间）
+const validTokens = new Map();
+
+// 定期清理过期token（每10分钟执行一次）
+setInterval(() => {
+    const now = Date.now();
+    for (const [token, expiresAt] of validTokens.entries()) {
+        if (now > expiresAt) {
+            validTokens.delete(token);
+        }
+    }
+}, 10 * 60 * 1000);
+
 // 启动时打印配置（密码部分隐藏）
 console.log('服务器配置:');
 console.log(`  端口: ${PORT}`);
@@ -68,8 +81,11 @@ app.post('/api/verify-password', async (req, res) => {
         // 密码正确，清除失败记录
         failedAttempts.delete(clientIp);
 
-        // 生成一个简单的token（实际项目中应使用JWT）
+        // 生成一个token并设置过期时间（1小时）
         const token = Buffer.from(`${Date.now()}-${Math.random()}`).toString('base64');
+        const expiresAt = Date.now() + 60 * 60 * 1000; // 1小时后过期
+        validTokens.set(token, expiresAt);
+        
         res.json({
             success: true,
             token: token,
@@ -115,11 +131,29 @@ app.get('/api/download/:filename', (req, res) => {
     const { filename } = req.params;
     const { token } = req.query;
 
-    // 验证token（简单验证，实际项目中应该更严格）
+    // 验证token是否存在
     if (!token) {
         return res.status(401).json({
             success: false,
             message: '未授权访问'
+        });
+    }
+
+    // 验证token是否有效
+    const expiresAt = validTokens.get(token);
+    if (!expiresAt) {
+        return res.status(401).json({
+            success: false,
+            message: 'Token无效或已过期'
+        });
+    }
+
+    // 检查token是否过期
+    if (Date.now() > expiresAt) {
+        validTokens.delete(token);
+        return res.status(401).json({
+            success: false,
+            message: 'Token已过期，请重新验证'
         });
     }
 

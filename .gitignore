@@ -5,3 +5,4 @@ npm-debug.log
 .DS_Store
 *.log
 DEPLOY.md
+k8s/

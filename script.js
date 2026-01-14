@@ -130,6 +130,11 @@ function closeModal() {
     errorMessage.textContent = '';
     turnstileContainer.style.display = 'none';
     pendingDownload = null;
+
+    // 重置 Turnstile（如果存在）
+    if (window.turnstile && turnstileWidgetId !== null) {
+        window.turnstile.reset(turnstileWidgetId);
+    }
 }
 
 // 显示错误信息
@@ -161,13 +166,18 @@ function showTurnstile() {
     const turnstileContainer = document.getElementById('turnstile-container');
     turnstileContainer.style.display = 'block';
 
-    // 渲染Turnstile widget
+    // 渲染Turnstile widget（仅渲染一次）
     if (window.turnstile && turnstileWidgetId === null) {
-        const turnstileElement = turnstileContainer.querySelector('.cf-turnstile');
-        turnstileWidgetId = window.turnstile.render(turnstileElement, {
-            sitekey: turnstileElement.getAttribute('data-sitekey'),
+        // 创建 turnstile 元素
+        turnstileContainer.innerHTML = '<div id="turnstile-widget"></div>';
+        
+        turnstileWidgetId = window.turnstile.render('#turnstile-widget', {
+            sitekey: '0x4AAAAAACMhHDAC96MuwZzS',
             theme: 'light',
         });
+    } else if (window.turnstile && turnstileWidgetId !== null) {
+        // 如果已经渲染过，只需要重置
+        window.turnstile.reset(turnstileWidgetId);
     }
 }
 
