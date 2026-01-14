@@ -7,8 +7,8 @@ WORKDIR /app
 # 复制package文件
 COPY package*.json ./
 
-# 安装依赖
-RUN npm ci --only=production
+# 安装依赖（使用npm install代替npm ci以提高兼容性）
+RUN npm install --omit=dev && npm cache clean --force
 
 # 复制应用代码
 COPY . .
