@@ -121,11 +121,12 @@ app.post('/api/admin/login', async (req, res) => {
     }
 
     if (!password || password !== ADMIN_PASSWORD) {
-        adminFailedAttempts.set(clientIp, attempts + 1);
+        const currentAttempts = adminFailedAttempts.get(clientIp) || 0;
+        adminFailedAttempts.set(clientIp, currentAttempts + 1);
         return res.status(401).json({
             success: false,
             message: '管理员密码错误',
-            requireCaptcha: TURNSTILE_ENABLED && (attempts + 1) >= 3
+            requireCaptcha: TURNSTILE_ENABLED && (currentAttempts + 1) >= 3
         });
     }
 
@@ -316,12 +317,13 @@ app.post('/api/verify-password', async (req, res) => {
         });
     } else {
         // 密码错误，增加失败次数
-        failedAttempts.set(clientIp, attempts + 1);
+        const currentAttempts = failedAttempts.get(clientIp) || 0;
+        failedAttempts.set(clientIp, currentAttempts + 1);
 
         res.status(401).json({
             success: false,
             message: '密码错误',
-            requireCaptcha: TURNSTILE_ENABLED && (attempts + 1) >= 3
+            requireCaptcha: TURNSTILE_ENABLED && (currentAttempts + 1) >= 3
         });
     }
 });
