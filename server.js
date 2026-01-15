@@ -115,6 +115,9 @@ app.post('/api/admin/login', async (req, res) => {
                 requireCaptcha: true
             });
         }
+
+        // Turnstile验证通过，重置失败次数
+        adminFailedAttempts.delete(clientIp);
     }
 
     if (!password || password !== ADMIN_PASSWORD) {
@@ -292,6 +295,9 @@ app.post('/api/verify-password', async (req, res) => {
                 requireCaptcha: true
             });
         }
+
+        // Turnstile验证通过，重置失败次数
+        failedAttempts.delete(clientIp);
     }
 
     if (password === DOWNLOAD_PASSWORD) {
