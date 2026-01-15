@@ -1,6 +1,9 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
+const multer = require('multer');
+const initSqlJs = require('sql.js');
 require('dotenv').config();
 
 const app = express();
@@ -8,6 +11,7 @@ const app = express();
 // 从环境变量读取配置，提供默认值
 const PORT = process.env.PORT || 3000;
 const DOWNLOAD_PASSWORD = process.env.DOWNLOAD_PASSWORD;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 const TURNSTILE_SECRET_KEY = process.env.TURNSTILE_SECRET_KEY;
 const TURNSTILE_ENABLED = process.env.TURNSTILE_ENABLED === 'true' || false;
 
@@ -17,12 +21,41 @@ const failedAttempts = new Map();
 // 有效的token集合（token -> 过期时间）
 const validTokens = new Map();
 
+// 管理员token集合（token -> 过期时间）
+const adminTokens = new Map();
+
+const DATA_DIR = path.join(__dirname, 'data');
+const UPLOADS_DIR = path.join(__dirname, 'uploads');
+const DB_PATH = path.join(DATA_DIR, 'downloads.db');
+
+ensureDirectories();
+let db;
+const dbReady = initializeDatabase();
+
+const upload = multer({
+    storage: multer.diskStorage({
+        destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+        filename: (req, file, cb) => {
+            const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_');
+            cb(null, `${Date.now()}-${safeName}`);
+        }
+    }),
+    limits: {
+        fileSize: 2 * 1024 * 1024 * 1024
+    }
+});
+
 // 定期清理过期token（每10分钟执行一次）
 setInterval(() => {
     const now = Date.now();
     for (const [token, expiresAt] of validTokens.entries()) {
         if (now > expiresAt) {
             validTokens.delete(token);
+        }
+    }
+    for (const [token, expiresAt] of adminTokens.entries()) {
+        if (now > expiresAt) {
+            adminTokens.delete(token);
         }
     }
 }, 10 * 60 * 1000);
@@ -34,6 +67,9 @@ console.log(`  密码: ${DOWNLOAD_PASSWORD.substring(0, 2)}***`);
 console.log(`  Turnstile: ${TURNSTILE_ENABLED ? '启用' : '禁用'}`);
 if (TURNSTILE_ENABLED && !TURNSTILE_SECRET_KEY) {
     console.warn('  ⚠️  警告: Turnstile已启用但未配置Secret Key');
+}
+if (!ADMIN_PASSWORD) {
+    console.warn('  ⚠️  警告: 未配置 ADMIN_PASSWORD，管理页面将无法登录');
 }
 
 // 中间件
@@ -47,6 +83,161 @@ app.use(express.static(__dirname, {
         }
     }
 }));
+
+// 管理员登录
+app.post('/api/admin/login', (req, res) => {
+    const { password } = req.body;
+
+    if (!ADMIN_PASSWORD) {
+        return res.status(500).json({
+            success: false,
+            message: '未配置管理员密码'
+        });
+    }
+
+    if (!password || password !== ADMIN_PASSWORD) {
+        return res.status(401).json({
+            success: false,
+            message: '管理员密码错误'
+        });
+    }
+
+    const token = createToken();
+    const expiresAt = Date.now() + 2 * 60 * 60 * 1000;
+    adminTokens.set(token, expiresAt);
+
+    return res.json({
+        success: true,
+        token,
+        message: '登录成功'
+    });
+});
+
+// 公共文件列表
+app.get('/api/files', async (req, res) => {
+    await dbReady;
+    const items = getAllItems();
+    res.json({
+        success: true,
+        items
+    });
+});
+
+// 管理员文件列表
+app.get('/api/admin/files', requireAdminAuth, async (req, res) => {
+    await dbReady;
+    const items = getAllItems();
+    res.json({
+        success: true,
+        items
+    });
+});
+
+// 管理员新增链接
+app.post('/api/admin/link', requireAdminAuth, async (req, res) => {
+    const { name, url, description, badge, version, arch } = req.body;
+
+    if (!name || !url) {
+        return res.status(400).json({
+            success: false,
+            message: '名称和链接不能为空'
+        });
+    }
+
+    try {
+        new URL(url);
+    } catch (error) {
+        return res.status(400).json({
+            success: false,
+            message: '链接格式不正确'
+        });
+    }
+
+    await dbReady;
+
+    const item = {
+        id: createId(),
+        type: 'link',
+        name: name.trim(),
+        url: url.trim(),
+        description: (description || '').trim(),
+        badge: (badge || '').trim(),
+        version: (version || '').trim(),
+        arch: (arch || '').trim(),
+        createdAt: new Date().toISOString()
+    };
+
+    insertItem(item);
+
+    res.json({
+        success: true,
+        item
+    });
+});
+
+// 管理员上传文件
+app.post('/api/admin/upload', requireAdminAuth, upload.single('file'), async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({
+            success: false,
+            message: '未选择文件'
+        });
+    }
+
+    const { name, description, badge, version, arch } = req.body;
+    const displayName = (name || '').trim() || path.parse(req.file.originalname).name;
+
+    await dbReady;
+
+    const item = {
+        id: createId(),
+        type: 'file',
+        name: displayName,
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        storage: 'uploads',
+        size: req.file.size,
+        description: (description || '').trim(),
+        badge: (badge || '').trim(),
+        version: (version || '').trim(),
+        arch: (arch || '').trim(),
+        createdAt: new Date().toISOString()
+    };
+
+    insertItem(item);
+
+    res.json({
+        success: true,
+        item
+    });
+});
+
+// 管理员删除文件/链接
+app.delete('/api/admin/files/:id', requireAdminAuth, async (req, res) => {
+    const { id } = req.params;
+    await dbReady;
+
+    const removed = getItemById(id);
+    if (!removed) {
+        return res.status(404).json({
+            success: false,
+            message: '未找到该资源'
+        });
+    }
+
+    if (removed.type === 'file' && removed.storage === 'uploads') {
+        const filePath = path.join(UPLOADS_DIR, removed.filename);
+        if (fs.existsSync(filePath)) {
+            fs.unlinkSync(filePath);
+        }
+    }
+
+    deleteItem(id);
+
+    res.json({
+        success: true
+    });
+});
 
 // 验证密码的API
 app.post('/api/verify-password', async (req, res) => {
@@ -82,7 +273,7 @@ app.post('/api/verify-password', async (req, res) => {
         failedAttempts.delete(clientIp);
 
         // 生成一个token并设置过期时间（1小时）
-        const token = Buffer.from(`${Date.now()}-${Math.random()}`).toString('base64');
+        const token = createToken();
         const expiresAt = Date.now() + 60 * 60 * 1000; // 1小时后过期
         validTokens.set(token, expiresAt);
         
@@ -127,7 +318,7 @@ async function verifyTurnstile(token, remoteip) {
 }
 
 // 下载文件的API
-app.get('/api/download/:filename', (req, res) => {
+app.get('/api/download/:filename', async (req, res) => {
     const { filename } = req.params;
     const { token } = req.query;
 
@@ -157,20 +348,18 @@ app.get('/api/download/:filename', (req, res) => {
         });
     }
 
-    // 允许下载的文件列表
-    const allowedFiles = [
-        'rustdesk-1.4.5-x86_64.exe',
-        'mumble_client-1.5.857.x64.exe'
-    ];
+    await dbReady;
 
-    if (!allowedFiles.includes(filename)) {
+    const targetItem = getItemByFilename(filename);
+    if (!targetItem) {
         return res.status(404).json({
             success: false,
             message: '文件不存在'
         });
     }
 
-    const filePath = path.join(__dirname, filename);
+    const baseDir = targetItem.storage === 'uploads' ? UPLOADS_DIR : __dirname;
+    const filePath = path.join(baseDir, filename);
 
     // 检查文件是否存在
     if (!fs.existsSync(filePath)) {
@@ -194,7 +383,187 @@ app.get('/api/download/:filename', (req, res) => {
     });
 });
 
+dbReady.catch((error) => {
+    console.error('数据库初始化失败:', error);
+    process.exit(1);
+});
+
 app.listen(PORT, () => {
     console.log(`服务器运行在 http://localhost:${PORT}`);
-    console.log(`下载密码: ${DOWNLOAD_PASSWORD}`);
 });
+
+function ensureDirectories() {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+
+function createId() {
+    if (crypto.randomUUID) {
+        return crypto.randomUUID();
+    }
+    return crypto.randomBytes(16).toString('hex');
+}
+
+function createToken() {
+    return Buffer.from(`${Date.now()}-${Math.random()}`).toString('base64');
+}
+
+async function initializeDatabase() {
+    const SQL = await initSqlJs();
+
+    if (fs.existsSync(DB_PATH)) {
+        const fileBuffer = fs.readFileSync(DB_PATH);
+        db = new SQL.Database(fileBuffer);
+    } else {
+        db = new SQL.Database();
+    }
+
+    db.run(`
+        CREATE TABLE IF NOT EXISTS downloads (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            name TEXT NOT NULL,
+            url TEXT,
+            description TEXT,
+            badge TEXT,
+            version TEXT,
+            arch TEXT,
+            filename TEXT,
+            originalName TEXT,
+            storage TEXT,
+            size INTEGER,
+            createdAt TEXT
+        )
+    `);
+
+    const count = getCount();
+    if (count === 0) {
+        seedDefaults();
+    }
+
+    persistDb();
+}
+
+function getCount() {
+    const rows = queryAll('SELECT COUNT(1) as total FROM downloads');
+    return rows[0]?.total || 0;
+}
+
+function seedDefaults() {
+    const defaults = [
+        {
+            id: createId(),
+            type: 'file',
+            name: 'RustDesk',
+            filename: 'rustdesk-1.4.5-x86_64.exe',
+            originalName: 'rustdesk-1.4.5-x86_64.exe',
+            storage: 'root',
+            description: '开源远程桌面工具',
+            badge: '远程桌面',
+            version: '1.4.5',
+            arch: 'x86_64',
+            createdAt: new Date().toISOString()
+        },
+        {
+            id: createId(),
+            type: 'file',
+            name: 'Mumble Client',
+            filename: 'mumble_client-1.5.857.x64.exe',
+            originalName: 'mumble_client-1.5.857.x64.exe',
+            storage: 'root',
+            description: '低延迟语音通话',
+            badge: '语音通讯',
+            version: '1.5.857',
+            arch: 'x64',
+            createdAt: new Date().toISOString()
+        }
+    ];
+
+    defaults.forEach(insertItem);
+}
+
+function insertItem(item) {
+    db.run(
+        `INSERT INTO downloads (
+            id, type, name, url, description, badge, version, arch,
+            filename, originalName, storage, size, createdAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ,
+        [
+            item.id,
+            item.type,
+            item.name,
+            item.url || null,
+            item.description || null,
+            item.badge || null,
+            item.version || null,
+            item.arch || null,
+            item.filename || null,
+            item.originalName || null,
+            item.storage || null,
+            item.size || null,
+            item.createdAt || new Date().toISOString()
+        ]
+    );
+
+    persistDb();
+}
+
+function deleteItem(id) {
+    db.run('DELETE FROM downloads WHERE id = ?', [id]);
+    persistDb();
+}
+
+function getAllItems() {
+    return queryAll('SELECT * FROM downloads ORDER BY datetime(createdAt) DESC');
+}
+
+function getItemById(id) {
+    return queryOne('SELECT * FROM downloads WHERE id = ? LIMIT 1', [id]);
+}
+
+function getItemByFilename(filename) {
+    return queryOne('SELECT * FROM downloads WHERE type = ? AND filename = ? LIMIT 1', ['file', filename]);
+}
+
+function queryAll(sql, params = []) {
+    const stmt = db.prepare(sql, params);
+    const rows = [];
+    while (stmt.step()) {
+        rows.push(stmt.getAsObject());
+    }
+    stmt.free();
+    return rows;
+}
+
+function queryOne(sql, params = []) {
+    const rows = queryAll(sql, params);
+    return rows[0] || null;
+}
+
+function persistDb() {
+    const data = db.export();
+    fs.writeFileSync(DB_PATH, Buffer.from(data));
+}
+
+function requireAdminAuth(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+    const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+    if (!token) {
+        return res.status(401).json({
+            success: false,
+            message: '未授权访问'
+        });
+    }
+
+    const expiresAt = adminTokens.get(token);
+    if (!expiresAt || Date.now() > expiresAt) {
+        adminTokens.delete(token);
+        return res.status(401).json({
+            success: false,
+            message: '登录已过期，请重新登录'
+        });
+    }
+
+    return next();
+}

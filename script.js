@@ -8,7 +8,7 @@ let turnstileWidgetId = null;
 
 document.addEventListener('DOMContentLoaded', function () {
     setupPasswordModal();
-    setupDownloadButtons();
+    loadDownloadItems();
     updateCopyright();
 });
 
@@ -184,6 +184,7 @@ function showTurnstile() {
 // 设置下载按钮
 function setupDownloadButtons() {
     const downloadButtons = document.querySelectorAll('.download-btn');
+    const linkButtons = document.querySelectorAll('.link-btn');
 
     downloadButtons.forEach(button => {
         button.addEventListener('click', (e) => {
@@ -215,6 +216,17 @@ function setupDownloadButtons() {
             this.style.transform = '';
         });
     });
+
+    linkButtons.forEach(button => {
+        button.addEventListener('click', (e) => {
+            e.preventDefault();
+            const url = button.getAttribute('data-url');
+            if (url) {
+                window.open(url, '_blank', 'noopener');
+                showToast('已打开链接', 'success');
+            }
+        });
+    });
 }
 
 // 执行下载
@@ -230,23 +242,20 @@ function downloadFile(filename) {
     document.body.removeChild(link);
 
     // 显示成功提示
-    showDownloadSuccess(filename);
+    showToast('下载已开始', 'success');
 }
 
-// 显示下载成功提示
-function showDownloadSuccess(filename) {
-    // 创建提示元素
+function showToast(message, type = 'success') {
     const toast = document.createElement('div');
-    toast.className = 'toast-notification';
+    toast.className = `toast-notification toast-${type}`;
     toast.innerHTML = `
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
             <polyline points="22 4 12 14.01 9 11.01"/>
         </svg>
-        <span>下载已开始</span>
+        <span>${message}</span>
     `;
 
-    // 添加样式
     const style = document.createElement('style');
     if (!document.getElementById('toast-styles')) {
         style.id = 'toast-styles';
@@ -267,7 +276,11 @@ function showDownloadSuccess(filename) {
                 animation: slideInRight 0.3s ease-out, slideOutRight 0.3s ease-in 2.7s;
                 z-index: 9999;
             }
-            
+
+            .toast-notification.toast-error {
+                background: #EF4444;
+            }
+
             @keyframes slideInRight {
                 from {
                     transform: translateX(100%);
@@ -278,7 +291,7 @@ function showDownloadSuccess(filename) {
                     opacity: 1;
                 }
             }
-            
+
             @keyframes slideOutRight {
                 from {
                     transform: translateX(0);
@@ -289,13 +302,13 @@ function showDownloadSuccess(filename) {
                     opacity: 0;
                 }
             }
-            
+
             @keyframes shake {
                 0%, 100% { transform: translateX(0); }
                 25% { transform: translateX(-10px); }
                 75% { transform: translateX(10px); }
             }
-            
+
             @media (max-width: 480px) {
                 .toast-notification {
                     bottom: 1rem;
@@ -309,10 +322,95 @@ function showDownloadSuccess(filename) {
 
     document.body.appendChild(toast);
 
-    // 3秒后移除
     setTimeout(() => {
         toast.remove();
     }, 3000);
+}
+
+async function loadDownloadItems() {
+    const grid = document.querySelector('.tools-grid');
+    if (!grid) return;
+
+    grid.innerHTML = '<div class="loading">加载中...</div>';
+
+    try {
+        const response = await fetch('/api/files');
+        const result = await response.json();
+        const items = result.items || [];
+
+        if (!items.length) {
+            grid.innerHTML = '<div class="empty-state">暂无可下载资源</div>';
+            return;
+        }
+
+        grid.innerHTML = items.map((item) => renderCard(item)).join('');
+        setupDownloadButtons();
+    } catch (error) {
+        grid.innerHTML = '<div class="empty-state">加载失败，请刷新重试</div>';
+        console.error('加载资源失败:', error);
+    }
+}
+
+function renderCard(item) {
+    const badgeText = item.badge || (item.type === 'link' ? '外部链接' : '可下载');
+    const description = item.description || '暂无描述';
+    const versionHtml = item.version
+        ? `<div class="meta-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span>版本 ${item.version}</span>
+        </div>`
+        : '';
+    const archHtml = item.arch
+        ? `<div class="meta-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            </svg>
+            <span>${item.arch}</span>
+        </div>`
+        : '';
+    const actionButton = item.type === 'link'
+        ? `<a href="#" class="download-btn link-btn" data-url="${item.url}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.07 0l1.41-1.41a5 5 0 0 0-7.07-7.07L10 5" />
+                <path d="M14 11a5 5 0 0 0-7.07 0L5.5 12.5a5 5 0 0 0 7.07 7.07L14 19" />
+            </svg>
+            <span>打开链接</span>
+        </a>`
+        : `<a href="#" class="download-btn" data-file="${item.filename}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4m4-5l5 5 5-5m-5 5V3" />
+            </svg>
+            <span>立即下载</span>
+        </a>`;
+
+    return `
+        <div class="tool-card">
+            <div class="card-header">
+                <div class="tool-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="18" height="18" rx="4" />
+                        <path d="M8 12h8" />
+                        <path d="M12 8v8" />
+                    </svg>
+                </div>
+                <span class="tool-badge">${badgeText}</span>
+            </div>
+            <div class="card-body">
+                <h3 class="tool-name">${item.name}</h3>
+                <p class="tool-description">${description}</p>
+                <div class="tool-meta">
+                    ${versionHtml}
+                    ${archHtml}
+                </div>
+            </div>
+            <div class="card-footer">
+                ${actionButton}
+            </div>
+        </div>
+    `;
 }
 
 // 更新版权年份

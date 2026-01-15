@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>下载管理</title>
+    <meta name="description" content="下载资源管理面板">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="admin.css">
+</head>
+
+<body class="admin-body">
+    <main class="admin-main">
+        <header class="admin-header">
+            <div>
+                <h1>下载管理</h1>
+                <p>集中管理可下载资源，支持链接与上传</p>
+            </div>
+            <a class="btn-secondary" href="/">返回下载页</a>
+        </header>
+
+        <section id="loginCard" class="admin-card">
+            <h2>管理员登录</h2>
+            <p>请输入管理员密码以继续</p>
+            <div class="admin-form">
+                <label for="adminPassword">管理员密码</label>
+                <input type="password" id="adminPassword" placeholder="请输入管理员密码" autocomplete="off">
+                <button id="adminLoginBtn" class="btn-primary">登录</button>
+                <p id="loginError" class="error-message"></p>
+            </div>
+        </section>
+
+        <section id="panel" class="admin-panel hidden">
+            <div class="panel-actions">
+                <div class="panel-title">
+                    <h2>资源列表</h2>
+                    <p>当前管理的下载项</p>
+                </div>
+                <button id="logoutBtn" class="btn-secondary">退出登录</button>
+            </div>
+
+            <div class="admin-grid">
+                <section class="admin-card">
+                    <h3>新增链接</h3>
+                    <form id="linkForm" class="admin-form">
+                        <label for="linkName">名称</label>
+                        <input id="linkName" name="name" type="text" placeholder="例如：远程工具文档" required>
+
+                        <label for="linkUrl">链接地址</label>
+                        <input id="linkUrl" name="url" type="url" placeholder="https://" required>
+
+                        <label for="linkDesc">描述</label>
+                        <input id="linkDesc" name="description" type="text" placeholder="可选，简要说明">
+
+                        <div class="field-row">
+                            <div>
+                                <label for="linkBadge">标签</label>
+                                <input id="linkBadge" name="badge" type="text" placeholder="例如：文档">
+                            </div>
+                            <div>
+                                <label for="linkVersion">版本</label>
+                                <input id="linkVersion" name="version" type="text" placeholder="可选">
+                            </div>
+                            <div>
+                                <label for="linkArch">架构</label>
+                                <input id="linkArch" name="arch" type="text" placeholder="可选">
+                            </div>
+                        </div>
+
+                        <button class="btn-primary" type="submit">新增链接</button>
+                        <p id="linkMessage" class="form-message"></p>
+                    </form>
+                </section>
+
+                <section class="admin-card">
+                    <h3>上传文件</h3>
+                    <form id="uploadForm" class="admin-form">
+                        <label for="uploadName">名称</label>
+                        <input id="uploadName" name="name" type="text" placeholder="显示名称（可选）">
+
+                        <label for="uploadFile">选择文件</label>
+                        <input id="uploadFile" name="file" type="file" required>
+
+                        <label for="uploadDesc">描述</label>
+                        <input id="uploadDesc" name="description" type="text" placeholder="可选，简要说明">
+
+                        <div class="field-row">
+                            <div>
+                                <label for="uploadBadge">标签</label>
+                                <input id="uploadBadge" name="badge" type="text" placeholder="例如：安装包">
+                            </div>
+                            <div>
+                                <label for="uploadVersion">版本</label>
+                                <input id="uploadVersion" name="version" type="text" placeholder="可选">
+                            </div>
+                            <div>
+                                <label for="uploadArch">架构</label>
+                                <input id="uploadArch" name="arch" type="text" placeholder="可选">
+                            </div>
+                        </div>
+
+                        <button class="btn-primary" type="submit">上传文件</button>
+                        <p id="uploadMessage" class="form-message"></p>
+                    </form>
+                </section>
+            </div>
+
+            <section class="admin-card">
+                <div class="table-header">
+                    <div>
+                        <h3>下载项</h3>
+                        <p>点击删除可移除链接或上传的文件</p>
+                    </div>
+                    <button id="refreshBtn" class="btn-secondary">刷新列表</button>
+                </div>
+                <div class="table-wrapper">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>名称</th>
+                                <th>类型</th>
+                                <th>说明</th>
+                                <th>资源</th>
+                                <th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody id="itemsBody"></tbody>
+                    </table>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <script src="admin.js"></script>
+</body>
+
+</html>

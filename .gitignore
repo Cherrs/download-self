@@ -6,3 +6,4 @@ npm-debug.log
 *.log
 DEPLOY.md
 k8s/
+uploads/
