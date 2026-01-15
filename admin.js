@@ -1,10 +1,12 @@
 let adminToken = localStorage.getItem('adminToken');
+let adminTurnstileWidgetId = null;
 
 const loginCard = document.getElementById('loginCard');
 const panel = document.getElementById('panel');
 const loginError = document.getElementById('loginError');
 const adminLoginBtn = document.getElementById('adminLoginBtn');
 const adminPasswordInput = document.getElementById('adminPassword');
+const adminTurnstileContainer = document.getElementById('admin-turnstile-container');
 const logoutBtn = document.getElementById('logoutBtn');
 const refreshBtn = document.getElementById('refreshBtn');
 const itemsBody = document.getElementById('itemsBody');
@@ -111,13 +113,24 @@ async function handleLogin() {
     adminLoginBtn.disabled = true;
     adminLoginBtn.textContent = '登录中...';
 
+    let turnstileToken = null;
+    if (adminTurnstileContainer.style.display !== 'none' && window.turnstile) {
+        turnstileToken = window.turnstile.getResponse(adminTurnstileWidgetId);
+        if (!turnstileToken) {
+            loginError.textContent = '请完成验证码验证';
+            adminLoginBtn.disabled = false;
+            adminLoginBtn.textContent = '登录';
+            return;
+        }
+    }
+
     try {
         const response = await fetch('/api/admin/login', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ password })
+            body: JSON.stringify({ password, turnstileToken })
         });
         const result = await response.json();
 
@@ -125,16 +138,42 @@ async function handleLogin() {
             adminToken = result.token;
             localStorage.setItem('adminToken', adminToken);
             adminPasswordInput.value = '';
+            adminTurnstileContainer.style.display = 'none';
+            if (window.turnstile && adminTurnstileWidgetId !== null) {
+                window.turnstile.reset(adminTurnstileWidgetId);
+            }
             showPanel();
             loadItems();
         } else {
             loginError.textContent = result.message || '登录失败';
+
+            if (result.requireCaptcha && adminTurnstileContainer.style.display === 'none') {
+                showAdminTurnstile();
+            }
+
+            if (window.turnstile && adminTurnstileWidgetId !== null) {
+                window.turnstile.reset(adminTurnstileWidgetId);
+            }
         }
     } catch (error) {
         loginError.textContent = '登录失败，请稍后重试';
     } finally {
         adminLoginBtn.disabled = false;
         adminLoginBtn.textContent = '登录';
+    }
+}
+
+function showAdminTurnstile() {
+    adminTurnstileContainer.style.display = 'block';
+
+    if (window.turnstile && adminTurnstileWidgetId === null) {
+        adminTurnstileContainer.innerHTML = '<div id="admin-turnstile-widget"></div>';
+        adminTurnstileWidgetId = window.turnstile.render('#admin-turnstile-widget', {
+            sitekey: '0x4AAAAAACMhHDAC96MuwZzS',
+            theme: 'light'
+        });
+    } else if (window.turnstile && adminTurnstileWidgetId !== null) {
+        window.turnstile.reset(adminTurnstileWidgetId);
     }
 }
 

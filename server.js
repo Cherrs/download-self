@@ -17,6 +17,7 @@ const TURNSTILE_ENABLED = process.env.TURNSTILE_ENABLED === 'true' || false;
 
 // 失败次数记录
 const failedAttempts = new Map();
+const adminFailedAttempts = new Map();
 
 // 有效的token集合（token -> 过期时间）
 const validTokens = new Map();
@@ -85,8 +86,10 @@ app.use(express.static(__dirname, {
 }));
 
 // 管理员登录
-app.post('/api/admin/login', (req, res) => {
-    const { password } = req.body;
+app.post('/api/admin/login', async (req, res) => {
+    const { password, turnstileToken } = req.body;
+    const clientIp = req.ip || req.connection.remoteAddress;
+    const attempts = adminFailedAttempts.get(clientIp) || 0;
 
     if (!ADMIN_PASSWORD) {
         return res.status(500).json({
@@ -95,12 +98,35 @@ app.post('/api/admin/login', (req, res) => {
         });
     }
 
+    if (TURNSTILE_ENABLED && attempts >= 3) {
+        if (!turnstileToken) {
+            return res.status(400).json({
+                success: false,
+                message: '请完成验证码验证',
+                requireCaptcha: true
+            });
+        }
+
+        const isValid = await verifyTurnstile(turnstileToken, clientIp);
+        if (!isValid) {
+            return res.status(400).json({
+                success: false,
+                message: '验证码验证失败',
+                requireCaptcha: true
+            });
+        }
+    }
+
     if (!password || password !== ADMIN_PASSWORD) {
+        adminFailedAttempts.set(clientIp, attempts + 1);
         return res.status(401).json({
             success: false,
-            message: '管理员密码错误'
+            message: '管理员密码错误',
+            requireCaptcha: TURNSTILE_ENABLED && (attempts + 1) >= 3
         });
     }
+
+    adminFailedAttempts.delete(clientIp);
 
     const token = createToken();
     const expiresAt = Date.now() + 2 * 60 * 60 * 1000;
@@ -276,7 +302,7 @@ app.post('/api/verify-password', async (req, res) => {
         const token = createToken();
         const expiresAt = Date.now() + 60 * 60 * 1000; // 1小时后过期
         validTokens.set(token, expiresAt);
-        
+
         res.json({
             success: true,
             token: token,

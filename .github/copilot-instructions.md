@@ -7,7 +7,7 @@
 
 ## 关键流程与边界
 
-- 密码验证：`POST /api/verify-password`，失败次数达到 3 且启用 Turnstile 时要求验证码；成功后签发 1 小时 token（内存 Map）。
+- 密码验证：失败次数达到 3 且启用 Turnstile 时要求验证码；成功后签发 1 小时 token（内存 Map）。
 - 下载：`GET /api/download/:filename?token=...`，先查 `downloads.db`，再从 `uploads/` 或项目根目录读取文件；静态访问被禁止 `.exe` 直链。
 - 管理后台：`/api/admin/login` 获取 2 小时 token；`/api/admin/files` 列表；`/api/admin/link` 新增链接；`/api/admin/upload` 上传文件到 `uploads/`；`DELETE /api/admin/files/:id` 删除资源并清理文件。
 

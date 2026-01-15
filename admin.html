@@ -13,6 +13,7 @@
         rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="admin.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 
 <body class="admin-body">
@@ -31,6 +32,7 @@
             <div class="admin-form">
                 <label for="adminPassword">管理员密码</label>
                 <input type="password" id="adminPassword" placeholder="请输入管理员密码" autocomplete="off">
+                <div id="admin-turnstile-container" style="display: none; margin: 16px 0;"></div>
                 <button id="adminLoginBtn" class="btn-primary">登录</button>
                 <p id="loginError" class="error-message"></p>
             </div>
