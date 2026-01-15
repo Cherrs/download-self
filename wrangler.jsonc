@@ -2,7 +2,7 @@
     "$schema": "./node_modules/wrangler/config-schema.json",
     "name": "playdota2win",
     "main": "src/worker.js",
-    "compatibility_date": "2026-01-16",
+    "compatibility_date": "2026-01-15",
     "assets": {
         "directory": "./public",
         "binding": "ASSETS"
