@@ -13,21 +13,13 @@
     "kv_namespaces": [
         {
             "binding": "APP_KV",
-            "id": "REPLACE_WITH_KV_NAMESPACE_ID"
-        }
-    ],
-    "d1_databases": [
-        {
-            "binding": "DB",
-            "database_name": "downloads-db",
-            "database_id": "REPLACE_WITH_D1_DATABASE_ID",
-            "migrations_dir": "migrations"
+            "id": "f2e0a96f51484204b4a3253bd4d17772"
         }
     ],
     "r2_buckets": [
         {
             "binding": "UPLOADS_BUCKET",
-            "bucket_name": "downloads-uploads"
+            "bucket_name": "downloads"
         }
     ]
 }

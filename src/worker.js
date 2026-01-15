@@ -2,6 +2,7 @@ const DOWNLOAD_TOKEN_TTL = 60 * 60;
 const ADMIN_TOKEN_TTL = 2 * 60 * 60;
 const FAILED_ATTEMPT_TTL = 60 * 60;
 const MAX_FAILED_ATTEMPTS = 3;
+const DOWNLOAD_INDEX_KEY = 'downloads:index';
 
 const DEFAULT_DOWNLOADS = [
     {
@@ -231,7 +232,7 @@ async function handleAdminDelete(id, env) {
         await env.UPLOADS_BUCKET.delete(removed.filename);
     }
 
-    await deleteItem(env, id);
+    await deleteItem(env, id, removed);
     return jsonResponse({ success: true });
 }
 
@@ -327,56 +328,65 @@ async function requireAdminAuth(request, env) {
 }
 
 async function getAllItems(env) {
-    const { results } = await env.DB.prepare('SELECT * FROM downloads ORDER BY datetime(createdAt) DESC').all();
-    return results || [];
+    const index = await getDownloadIndex(env);
+    if (!index.length) return [];
+
+    const items = [];
+    for (let i = 0; i < index.length; i += 100) {
+        const batch = index.slice(i, i + 100);
+        const keys = batch.map((id) => getItemKey(id));
+        const results = await env.APP_KV.get(keys, 'json');
+
+        for (const id of batch) {
+            const item = results.get(getItemKey(id));
+            if (item) items.push(item);
+        }
+    }
+
+    return items;
 }
 
 async function getItemById(env, id) {
-    const result = await env.DB.prepare('SELECT * FROM downloads WHERE id = ? LIMIT 1').bind(id).first();
-    return result || null;
+    return await env.APP_KV.get(getItemKey(id), 'json');
 }
 
 async function getItemByFilename(env, filename) {
-    const result = await env.DB.prepare('SELECT * FROM downloads WHERE type = ? AND filename = ? LIMIT 1')
-        .bind('file', filename)
-        .first();
-    return result || null;
+    const id = await env.APP_KV.get(getFilenameKey(filename));
+    if (!id) return null;
+    return await getItemById(env, id);
 }
 
 async function insertItem(env, item) {
-    await env.DB.prepare(
-        `INSERT INTO downloads (
-      id, type, name, url, description, badge, version, arch,
-      filename, originalName, storage, size, createdAt
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).bind(
-        item.id,
-        item.type,
-        item.name,
-        item.url || null,
-        item.description || null,
-        item.badge || null,
-        item.version || null,
-        item.arch || null,
-        item.filename || null,
-        item.originalName || null,
-        item.storage || null,
-        item.size || null,
-        item.createdAt || new Date().toISOString()
-    ).run();
+    await env.APP_KV.put(getItemKey(item.id), JSON.stringify(item));
+
+    if (item.type === 'file' && item.filename) {
+        await env.APP_KV.put(getFilenameKey(item.filename), item.id);
+    }
+
+    const index = await getDownloadIndex(env);
+    const nextIndex = [item.id, ...index.filter((id) => id !== item.id)];
+    await env.APP_KV.put(DOWNLOAD_INDEX_KEY, JSON.stringify(nextIndex));
 }
 
-async function deleteItem(env, id) {
-    await env.DB.prepare('DELETE FROM downloads WHERE id = ?').bind(id).run();
+async function deleteItem(env, id, item) {
+    const existing = item || await getItemById(env, id);
+    if (existing?.type === 'file' && existing.filename) {
+        await env.APP_KV.delete(getFilenameKey(existing.filename));
+    }
+
+    await env.APP_KV.delete(getItemKey(id));
+
+    const index = await getDownloadIndex(env);
+    const nextIndex = index.filter((entryId) => entryId !== id);
+    await env.APP_KV.put(DOWNLOAD_INDEX_KEY, JSON.stringify(nextIndex));
 }
 
 async function ensureSeeded(env) {
     const seeded = await env.APP_KV.get('seeded');
     if (seeded) return;
 
-    const countRow = await env.DB.prepare('SELECT COUNT(1) as total FROM downloads').first();
-    const total = countRow?.total || 0;
-    if (total === 0) {
+    const index = await getDownloadIndex(env);
+    if (index.length === 0) {
         for (const item of DEFAULT_DOWNLOADS) {
             await insertItem(env, {
                 id: createId(),
@@ -395,6 +405,19 @@ async function ensureSeeded(env) {
     }
 
     await env.APP_KV.put('seeded', '1');
+}
+
+function getItemKey(id) {
+    return `downloads:item:${id}`;
+}
+
+function getFilenameKey(filename) {
+    return `downloads:filename:${filename}`;
+}
+
+async function getDownloadIndex(env) {
+    const index = await env.APP_KV.get(DOWNLOAD_INDEX_KEY, 'json');
+    return Array.isArray(index) ? index : [];
 }
 
 async function readJson(request) {
