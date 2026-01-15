@@ -29,26 +29,28 @@ const DEFAULT_DOWNLOADS = [
 
 export default {
     async fetch(request, env, ctx) {
-        try {
-            const url = new URL(request.url);
-            const { pathname } = url;
+        const url = new URL(request.url);
+        const { pathname } = url;
 
+        try {
+            // API 路由
             if (pathname.startsWith('/api/')) {
                 await ensureSeeded(env);
                 return handleApiRequest(request, env);
             }
 
-            // 处理首页路由
+            // 静态资源路由
+            // 首页重定向
             if (pathname === '/') {
-                url.pathname = '/index.html';
-                return env.ASSETS.fetch(new Request(url.toString(), request));
+                return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
             }
 
+            // 管理页面重定向
             if (pathname === '/admin') {
-                url.pathname = '/admin.html';
-                return env.ASSETS.fetch(new Request(url.toString(), request));
+                return env.ASSETS.fetch(new Request(new URL('/admin.html', url), request));
             }
 
+            // 其他静态资源
             return env.ASSETS.fetch(request);
         } catch (error) {
             console.error('Worker error:', error);
