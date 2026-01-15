@@ -1,10 +1,4 @@
-node_modules/
-*.exe
-.env
-npm-debug.log
+.wrangler/
+.dev.vars
 .DS_Store
 *.log
-DEPLOY.md
-k8s/
-uploads/
-data/

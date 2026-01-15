@@ -170,7 +170,7 @@ function showTurnstile() {
     if (window.turnstile && turnstileWidgetId === null) {
         // 创建 turnstile 元素
         turnstileContainer.innerHTML = '<div id="turnstile-widget"></div>';
-        
+
         turnstileWidgetId = window.turnstile.render('#turnstile-widget', {
             sitekey: '0x4AAAAAACMhHDAC96MuwZzS',
             theme: 'light',
@@ -366,7 +366,7 @@ function renderCard(item) {
     const archHtml = item.arch
         ? `<div class="meta-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4A2 2 0 0 0 12 22l7-4A2 2 0 0 0 21 16z" />
             </svg>
             <span>${item.arch}</span>
         </div>`
