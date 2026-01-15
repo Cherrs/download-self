@@ -231,15 +231,10 @@ function setupDownloadButtons() {
 
 // 执行下载
 function downloadFile(filename) {
-    const downloadUrl = `/api/download/${filename}?token=${encodeURIComponent(authToken)}`;
+    const downloadUrl = `/api/download/${encodeURIComponent(filename)}?token=${encodeURIComponent(authToken)}`;
 
-    // 创建隐藏的a标签触发下载
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // 使用 window.location 触发下载（更可靠）
+    window.location.href = downloadUrl;
 
     // 显示成功提示
     showToast('下载已开始', 'success');
