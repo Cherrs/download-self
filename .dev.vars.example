@@ -1,0 +1,6 @@
+# 本地开发环境变量示例
+# 复制此文件为 .dev.vars 并填入真实值（.dev.vars 已在 .gitignore 中排除）
+
+DOWNLOAD_PASSWORD=your_download_password_here
+ADMIN_PASSWORD=your_admin_password_here
+TURNSTILE_SECRET_KEY=your_turnstile_secret_key_here
