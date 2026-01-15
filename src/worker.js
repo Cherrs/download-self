@@ -38,6 +38,12 @@ export default {
                 return handleApiRequest(request, env);
             }
 
+            // 处理首页路由
+            if (pathname === '/') {
+                url.pathname = '/index.html';
+                return env.ASSETS.fetch(new Request(url.toString(), request));
+            }
+
             if (pathname === '/admin') {
                 url.pathname = '/admin.html';
                 return env.ASSETS.fetch(new Request(url.toString(), request));
