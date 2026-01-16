@@ -1,4 +1,4 @@
-name = "playdota2win"
+name = "download-self"
 main = "src/worker.js"
 compatibility_date = "2026-01-15"
 
